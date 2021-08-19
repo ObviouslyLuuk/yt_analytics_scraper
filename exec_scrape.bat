@@ -1,2 +1,2 @@
-C:/Users/321lu/AppData/Local/Programs/Python/Python37/python.exe d:/Users/Luuk/Documents/Programming/PersonalProjects/Test/scrape_yt_data/scrape.py
+python d:/Users/Luuk/Documents/Programming/PersonalProjects/yt_analytics_scraper/scrape.py
 exit
