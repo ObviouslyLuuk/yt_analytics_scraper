@@ -1,5 +1,5 @@
 # yt_analytics_scraper
-This tool uses selenium and a chrome webdriver to scrape YouTube for the realtime data (because it isn't available on YouTube for longer than 48 hours). It then saves/appends the data to a csv file.
+This tool uses selenium and a chrome webdriver to scrape YouTube for analytics data (because YouTube doesn't store it forever). It then saves/appends the data to a csv file.
 
 # Usage:
 Change the values at the top of scrape.py for your custom use.
@@ -7,13 +7,13 @@ Change the values at the top of scrape.py for your custom use.
     - Check which version of Chrome you have in the settings of your browser
 - You'll also need a Google Chrome profile that's already logged into the desired YouTube account, as to avoid having to enter your login information (which Google forbids bots to do anyway if you've got 2-factor authentication enabled). You'll find this profile at C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data\\ <br>
 If you want to be safe: 
-    - create a new profile 
+    - create a new profile
     - login to your YouTube channel on it 
     - copy the "User Data" folder (which includes your new profile) to a separate location (you need to close Chrome for this step)
-    - fill that path and profile folder name into the scrape.py file
+    - fill that path and profile folder name into the custom_values.py file
 ## Windows:
 Make sure the exec_scrape.bat file contains the correct path for your location of scrape.py.
-### Open Windows Task Scheduler
+### Open Windows Task Scheduler [(helpful tutorial for this)](https://towardsdatascience.com/automate-your-python-scripts-with-task-scheduler-661d0a40b279)
 <i>(Options or checkboxes not mentioned shouldn't be enabled)</i>
 > Create Basic Task...
 - Give Name and Description
