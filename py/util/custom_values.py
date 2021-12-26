@@ -9,5 +9,6 @@ CHROMEDRIVER_PATH   = "C:\\chromedriver\\chromedriver"
 # Find the "User Data" folder at
 # C:\\Users\\{username}\\AppData\\Local\\Google\\Chrome\\User Data\\
 CHROME_PROFILES     = "D:\\Users\\Luuk\\Documents\\Programming\\stuff\\yt_realtime_data\\User Data\\"
+# CHROME_PROFILES     = "C:\\Users\\321lu\\AppData\\Local\\Google\\Chrome\\User Data\\"
 # Use a profile that's already logged in to the desired YouTube channel
-CHROME_PROFILE      = "Profile 4"
+CHROME_PROFILE      = "Profile 6"

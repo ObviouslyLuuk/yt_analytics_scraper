@@ -3,7 +3,7 @@
 # time_period=since_published:
 # Script to scrape hourly YouTube analytics for the time
 # since the upload of a video.
-# This should be possible for videos younger than 30 days?
+# This should be possible for videos younger than 30 days
 #
 # time_period=24h:
 # Script to scrape YouTube analytics from the first 24 hours of a video.
@@ -107,6 +107,7 @@ def parse_line(string: str):
     return json.loads(string)
 
 
+# TODO: Use document.querySelector('yta-line-chart-base').chartSpec
 def parse_line_data(line_data: dict, time_period: TimePeriod) -> list:
     line = parse_line(line_data["line"])
     if time_period == TimePeriod.since_published:
