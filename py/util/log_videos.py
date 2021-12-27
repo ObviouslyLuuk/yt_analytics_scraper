@@ -15,6 +15,7 @@ from .constants import ANALYTICS_URL
 
 
 def scrape_recent_video_id(driver: webdriver.Chrome) -> str:
+    """Go to channel dashboard and scrape most recent video_id."""
     driver.get(ANALYTICS_URL.format(mode="channel", id=CHANNEL_ID))
 
     # Get video_id of the most recent video from link on page
@@ -27,6 +28,7 @@ def scrape_recent_video_id(driver: webdriver.Chrome) -> str:
 
 
 def scrape_date_time(driver: webdriver.Chrome, video_id: str) -> tuple:
+    """Use https://citizenevidence.amnestyusa.org/ to scrape video datetime. Return (title, datetime)"""
     # Get upload date and time (UTC)
     driver.get("https://citizenevidence.amnestyusa.org/")
 
@@ -52,6 +54,10 @@ def scrape_date_time(driver: webdriver.Chrome, video_id: str) -> tuple:
 
 
 def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1) -> None:
+    """
+    Reads videos from video log, adds parameters (either adding a new video, 
+    or adjusting an existing one), and then overwrites the video log.
+    """
     try:
         with open(DATA_DIR+"video_log.csv", "r") as f:
             reader = csv.DictReader(f)
@@ -79,14 +85,16 @@ def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1) 
         writer.writerows(videos)
 
 
-def get_videos(recent: bool=True) -> list:
+def get_videos(only_recent: bool=True) -> list:
     """
     Return a list of videos from the offline log.
 
     Parameters
     ----------
-    recent : bool, optional
-        True only gives videos where recent == 1
+    only_recent : bool, optional
+        True only gives videos where recent == 1,
+        this is when the video is younger than a month,
+        after that timeframe YouTube disables the hourly view.
 
     Returns
     -------
@@ -103,7 +111,7 @@ def get_videos(recent: bool=True) -> list:
             reader = csv.DictReader(f)
             videos = []
             for video in reader:
-                if recent and int(video["recent"]) != 1:
+                if only_recent and int(video["recent"]) != 1:
                     continue
                 video["date"] = dt.datetime.strptime(
                     video["date"], '%Y-%m-%d %H:%M')
@@ -111,16 +119,22 @@ def get_videos(recent: bool=True) -> list:
     except FileNotFoundError:
         update_video_log()
         print("No video log found: created one")
-        videos = get_videos(recent)
+        videos = get_videos(only_recent)
 
     return videos
 
 
 def update_video_log(video_id: str='') -> None:
+    """
+    Scrapes video metadata and calls adjust_video_log to update the log.
+    Also calls update_video_log_recencies
+    """
     # Get videos already in log
     videos = []
     if os.path.isfile(DATA_DIR+"video_log.csv"):
         videos = get_videos(False)
+
+    update_video_log_recencies(videos)
 
     # Scrape video id if not given
     driver = startWebdriver()
@@ -138,3 +152,21 @@ def update_video_log(video_id: str='') -> None:
     adjust_video_log(datetime, video_id, title)
     print("Added new video to log")
     driver.quit()
+
+
+def update_video_log_recencies(videos, days=31):
+    """
+    Iterate through videos in log and check if they're still younger than <days>.
+    Default is 31 days because YouTube turns off hourly data after a month.
+    """
+    for video in videos:
+        recent = dt.datetime.utcnow() - video['date'] < dt.timedelta(days=days)
+
+        if int(video["recent"]) and not recent:
+            adjust_video_log(
+                video["date"],
+                video["id"],
+                video["title"],
+                recent=0,
+            )
+            print(f"updated recency of {video['id']} to False")

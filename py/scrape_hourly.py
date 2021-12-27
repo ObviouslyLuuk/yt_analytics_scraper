@@ -17,12 +17,15 @@ import time
 import json
 import datetime as dt
 import csv
+import os
 
 from util.log_videos import get_videos, update_video_log
-from util.helpers import startWebdriver
+from util.helpers import startWebdriver, get_logging_decorator
 
 from util.custom_values import CHANNEL_ID, DATA_DIR
 from util.constants import ScrapeMode, ANALYTICS_URL, DAYS_OF_THE_WEEK
+
+SCRIPT_NAME = os.path.basename(__file__)[:-len(".py")]
 
 # SCRAPING --------------------------------------------------------------------
 
@@ -227,7 +230,8 @@ def save_data(data: list, title: str, dir: str='') -> None:
         print(f"Written scraped data to {title}")
 
 
-def process(mode: ScrapeMode=ScrapeMode.channel, video_id: str='', dir: str='', string: str='') -> None:
+def process(mode: ScrapeMode=ScrapeMode.channel, video_id: str='', 
+dir: str='', string: str='') -> None:
     """Weaves all basic functionality together"""
     if not string:
         # Scrape data
@@ -257,10 +261,15 @@ def process(mode: ScrapeMode=ScrapeMode.channel, video_id: str='', dir: str='', 
 
 # MAIN ------------------------------------------------------------------------
 
-if __name__ == "__main__":
+@get_logging_decorator(os.path.join(DATA_DIR, "script_logs", SCRIPT_NAME))
+def main():
     process(dir=DATA_DIR)
 
     # Get data for the two most recent videos
+    # They don't need to be younger than a month
     update_video_log()
     for video in get_videos(False)[-2:]:
         process(ScrapeMode.video, video["id"], DATA_DIR)
+
+if __name__ == "__main__":
+    main()

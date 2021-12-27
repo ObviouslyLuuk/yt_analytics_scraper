@@ -27,13 +27,16 @@ import json
 import datetime as dt
 import csv
 import sys
+import os
 
 from util.log_videos import adjust_video_log, get_videos, update_video_log
-from util.helpers import startWebdriver
+from util.helpers import startWebdriver, get_logging_decorator
 
 from util.custom_values import DATA_DIR
 from util.constants import METRICS, TimePeriod, TRAFFIC_SOURCES_IMP, \
     TRAFFIC_SOURCES, TRAFFIC_SOURCES_INV, DIMENSIONS, ADV_URL
+
+SCRIPT_NAME = os.path.basename(__file__)[:-len(".py")]
 
 # SCRAPING --------------------------------------------------------------------
 
@@ -129,7 +132,8 @@ def parse_line_data(line_data: dict, time_period: TimePeriod) -> list:
 # OTHER -----------------------------------------------------------------------
 
 
-def assemble_data(lines: dict, upload_datetime: dt.datetime, time_period: TimePeriod) -> list:
+def assemble_data(
+lines: dict, upload_datetime: dt.datetime, time_period: TimePeriod) -> list:
     data = []
 
     for metric_key, line in lines.items():
@@ -169,6 +173,8 @@ def save_data(data: list, title: str="data", dir: str='') -> bool:
             for row in reader:
                 read_data.append(row)
 
+        # TODO: need to be more thorough here. If the number of days exceeds the number of hours
+        # it overwrites the hourly data with daily.
         if len(data) < len(read_data):
             print("less data scraped than is already logged.\n" +
                   "this probably means the same granularity is " +
@@ -187,7 +193,9 @@ def save_data(data: list, title: str="data", dir: str='') -> bool:
     return True
 
 
-def process(video_id: str, upload_datetime: dt.datetime, dir: str='', time_period: TimePeriod=TimePeriod.since_published) -> bool:
+def process(
+video_id: str, upload_datetime: dt.datetime, dir: str='', 
+time_period: TimePeriod=TimePeriod.since_published) -> bool:
     """
     Scrape video analytics from YouTube. Save to csv.
 
@@ -289,7 +297,8 @@ def process(video_id: str, upload_datetime: dt.datetime, dir: str='', time_perio
 
 # MAIN ------------------------------------------------------------------------
 
-if __name__ == "__main__":
+@get_logging_decorator(os.path.join(DATA_DIR, "script_logs", SCRIPT_NAME))
+def main():
     # Get command line argument
     try:
         time_period = TimePeriod[sys.argv[1]]
@@ -299,9 +308,13 @@ if __name__ == "__main__":
     except KeyError:
         print("Usage: python scrape_since_publish.py <first_24h / since_published>")
 
-    # Scrape data for videos where hourly data is still displayed
+    # Scrape data for videos 
+    # Only where hourly data is still displayed if time_period is since published
     update_video_log()
-    recent_videos = get_videos()
+    recent_videos = get_videos(time_period == TimePeriod.since_published)
+
+    if len(recent_videos) < 1:
+        print("Scrape since publish: no recent videos")
 
     for video in recent_videos:
         still_recent = process(video["id"], video["date"], DATA_DIR, time_period)
@@ -312,3 +325,6 @@ if __name__ == "__main__":
                 video["title"],
                 recent=0,
             )
+
+if __name__ == "__main__":
+    main()
