@@ -1,8 +1,9 @@
 # Selenium stuff
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
 
-from .custom_values import CHROMEDRIVER_PATH, CHROME_PROFILES, CHROME_PROFILE
+from .custom_values import CHROMEDRIVER_PATH, CHROME_PROFILES, CHROME_PROFILE, DATA_DIR
 
 # Folder manipulation stuff
 from shutil import rmtree
@@ -13,6 +14,8 @@ import sys
 import logging
 import functools
 import datetime as dt
+
+import os
 
 def startWebdriver() -> webdriver.Chrome:
     """Starts the selenium webdriver and adds options"""
@@ -42,6 +45,7 @@ def reset_user_data(dir, replace_dir):
     """
     rmtree(dir)
     copy_tree(replace_dir, dir)
+    print("Reset User Data for webdriver")
 
 
 class Tee(object):
@@ -65,7 +69,7 @@ class Tee(object):
 
 
 def get_logging_decorator(filename):
-    """Return logging decorator that logs into <filename>"""
+    """Return logging decorator that logs into <filename>.txt and logs errors into <filename>_error.log"""
     def logging_decorator(func):
         """Log errors from <func>"""
         @functools.wraps(func)
@@ -87,3 +91,15 @@ def get_logging_decorator(filename):
                 logging.error(err)
         return wrapper
     return logging_decorator
+
+
+def catch_user_data_error(func):
+    """If the WebDriverException happens, calls the reset_user_data function and tries again."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except WebDriverException:
+            reset_user_data(os.path.join(DATA_DIR, "User Data"), os.path.join(DATA_DIR, "backup/User Data(backup)"))
+            return func(*args, **kwargs)
+    return wrapper

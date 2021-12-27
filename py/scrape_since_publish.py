@@ -17,148 +17,125 @@
 
 # Selenium stuff
 # For a custom wait
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # For parsing and saving
-import json
 import datetime as dt
 import csv
 import sys
 import os
 
 from util.log_videos import adjust_video_log, get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator
+from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error
 
 from util.custom_values import DATA_DIR
 from util.constants import METRICS, TimePeriod, TRAFFIC_SOURCES_IMP, \
-    TRAFFIC_SOURCES, TRAFFIC_SOURCES_INV, DIMENSIONS, ADV_URL
+    TRAFFIC_SOURCES, Dimensions, ADV_URL
 
 SCRIPT_NAME = os.path.basename(__file__)[:-len(".py")]
 
 # SCRAPING --------------------------------------------------------------------
 
-
-def zoom_out(driver) -> bool:
-    # Wait 10 seconds for the lines to show up
-    lines = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located(
-            (By.CSS_SELECTOR, 'g.line-segments > path.line-series'))
-    )
-    # Zoom out for more accurate data
-    driver.execute_script(
-        'document.querySelectorAll("#yta-line-chart-base")' +
-        '.forEach(e => e.style.zoom = "0.0001%")'
-    )
-    # Wait until the old chart goes stale
-    WebDriverWait(driver, 10).until(
-        EC.staleness_of(lines)
-    )
-    return True
-
-
-def scrape(driver, totals: bool=False) -> tuple:
-    """Scrapes YouTube analytics from the chart"""
+def scrape(driver) -> list:
+    """
+    Scrape YouTube analytics from the chart. Return list of the different 
+    dimension categories with data for the loaded webpage.
+    like:
+        [
+            {
+                "data": [
+                    {
+                        "hovercardInfo": {
+                            "relativeDateFormatted": <relative time since upload, eg 'First 2 days'>
+                            "entityTitle": <plaintext category name, eg End Screens>
+                        }
+                        "x": <millisecond timestamp of datapoint>
+                        "y": <metric value>
+                    },
+                ]
+                "name": <category name, eg 'END_SCREEN_main'>
+            },
+        ]
+    """
     # Css selectors
-    traffic_source_css = 'g.seriesGroups > g[series-id{}]'
-    scale_css = 'g.y.axis > g.tick.first-tick > text > tspan'
-    pane_css = 'rect.mouseCapturePane'
-
-    if totals:
-        traffic_source_css = traffic_source_css.format(
-            f'="{TRAFFIC_SOURCES_INV["Total"]}"')
-    else:
-        traffic_source_css = traffic_source_css.format('')
-    line_css = traffic_source_css + ' > g.line-segments > path.line-series'
+    chart_css = 'yta-line-chart-base'
 
     # Wait 10 seconds for the line element to show up
-    line_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, line_css))
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, chart_css))
     )
-    traffic_source = TRAFFIC_SOURCES[
-        driver.find_element_by_css_selector(traffic_source_css)
-        .get_attribute('series-id')
-        ]
-    line_string = line_element.get_attribute('d')
-    height = float(driver.find_element_by_css_selector(pane_css)
-                   .get_attribute('height'))
-    scale_string = driver.find_element_by_css_selector(scale_css) \
-        .get_attribute('innerHTML')
+    metric_data_list = []
+    totals_data = driver.execute_script("return document.querySelector('#explore-app > yta-explore-deep-dive').fetchedData.data.chartProperties.mainMetricData.data[0].totalsSeries")
+    series_data_array = driver.execute_script("return Array.from( document.querySelector('#explore-app > yta-explore-deep-dive').fetchedData.data.chartProperties.mainMetricData.data[0].series.values() )")
+    metric_data_list.append(totals_data)
+    metric_data_list.extend(series_data_array)
 
-    return {"line": line_string, "height": height, "scale": scale_string}, \
-        traffic_source
-
-# PARSING ---------------------------------------------------------------------
-
-
-def parse_scale(string: str) -> float:
-    result = float(string.rstrip("KMB").replace(',', ''))
-    if "K" in string:
-        result *= 1e3
-    elif "M" in string:
-        result *= 1e6
-    elif "B" in string:
-        result *= 1e9
-
-    return result
-
-
-def parse_line(string: str):
-    string = string.replace('M', '[[').replace('L', '],[') + ']]'
-    return json.loads(string)
-
-
-# TODO: Use document.querySelector('yta-line-chart-base').chartSpec
-def parse_line_data(line_data: dict, time_period: TimePeriod) -> list:
-    line = parse_line(line_data["line"])
-    if time_period == TimePeriod.since_published:
-        # Throw away last hour because it's in progress
-        line.pop()
-    scale_top = parse_scale(line_data["scale"])
-    unit_per_y = scale_top/line_data["height"]
-    time_per_x = (len(line)-1)/line[-1][0]
-
-    scaled_line = []
-    for point in line:
-        scaled_line.append((
-            round(point[0]*time_per_x),
-            (line_data["height"] - point[1])*unit_per_y,
-        ))
-
-    return scaled_line
+    return metric_data_list
 
 # OTHER -----------------------------------------------------------------------
 
+def check_granularity(metrics_data: dict) -> dt.timedelta:
+    metric_data_list = list(metrics_data.values())[0]
+    category_data = metric_data_list[0]['data']
+    start_dt = dt.datetime.fromtimestamp(category_data[0]['x']/1000)
+    next_dt = dt.datetime.fromtimestamp(category_data[1]['x']/1000)
+    time_delta = next_dt - start_dt
+    return time_delta
 
-def assemble_data(
-lines: dict, upload_datetime: dt.datetime, time_period: TimePeriod) -> list:
+
+def assemble_data(metrics_data: dict) -> list:
     data = []
 
-    for metric_key, line in lines.items():
-        round_dec = 0
-        if "watchtime" in metric_key:
-            round_dec = 2
+    for metric_key, metric_data_list in metrics_data.items():
+        value_fn = lambda x: x
+        if metric_key == "watchtime":
+            metric_key += "(Hours)"
+            factor = 1/60/60/1000 # Originally the watchtime data is in milliseconds
+            value_fn = lambda x: round(x*factor, 2)         
 
-        for time_unit, value in line:
-            value = round(value, round_dec)
+        for category in metric_data_list:
+            traffic_source = TRAFFIC_SOURCES[category['name']]
 
-            time_delta = dt.timedelta(hours=time_unit)
-            if time_period == TimePeriod.first_24h:
-                time_delta = dt.timedelta(minutes=time_unit)
+            # Don't save stuff that's not logged for impressions
+            if metric_key == "impressions" and \
+                traffic_source not in TRAFFIC_SOURCES_IMP.values():
+                continue            
 
-            datetime = upload_datetime + time_delta
-            if len(data) <= time_unit:
-                data.append({
-                    "datetime(UTC)": datetime,
-                    "day": datetime.strftime('%a'),
-                    "time unit": time_unit,
-                    "time delta": time_delta,
-                    metric_key: value,
-                })
-            else:
-                data[time_unit][metric_key] = value
+            for time_unit, datapoint in enumerate(category['data']):
+                datetime = dt.datetime.fromtimestamp(datapoint['x']/1000, dt.timezone.utc)
+                value = value_fn(datapoint['y'])
+                time_delta = datapoint['hovercardInfo']['relativeDateFormatted']
+
+                if len(data) <= time_unit:
+                    # Add new row when necessary
+                    data.append({
+                        "datetime(UTC)": datetime,
+                        "day": datetime.strftime('%a'),
+                        "time unit": time_unit,
+                        "time delta": time_delta,
+                        f"{metric_key}_{traffic_source}": value,
+                    })
+                else:
+                    # Add value to row
+                    data[time_unit][f"{metric_key}_{traffic_source}"] = value
+
+        # Add empty traffic sources for the fieldnames:
+        # Sometimes a traffic source isn't listed because there is no
+        # data on it yet, but in the future there might be so we want to
+        # include it for the fieldnames in the csv
+        traffic_sources = TRAFFIC_SOURCES.values()
+        if metric_key == "impressions":
+            traffic_sources = TRAFFIC_SOURCES_IMP.values()
+        elif metric_key in ["likes", "dislikes"]:
+            traffic_sources = ["Total"]
+
+        for traffic_source in traffic_sources:
+            if f"{metric_key}_{traffic_source}" in data[0]:
+                continue
+            data[0][f"{metric_key}_{traffic_source}"] = 0
 
     return data
 
@@ -173,12 +150,10 @@ def save_data(data: list, title: str="data", dir: str='') -> bool:
             for row in reader:
                 read_data.append(row)
 
-        # TODO: need to be more thorough here. If the number of days exceeds the number of hours
-        # it overwrites the hourly data with daily.
         if len(data) < len(read_data):
             print("less data scraped than is already logged.\n" +
-                  "this probably means the same granularity is " +
-                  "no longer available")
+                  "this is weird because granularity should " +
+                  "already be checked.")
             return False
     except FileNotFoundError:
         print(f"Making new file: {title}")
@@ -193,8 +168,7 @@ def save_data(data: list, title: str="data", dir: str='') -> bool:
     return True
 
 
-def process(
-video_id: str, upload_datetime: dt.datetime, dir: str='', 
+def process(video_id: str, dir: str='', 
 time_period: TimePeriod=TimePeriod.since_published) -> bool:
     """
     Scrape video analytics from YouTube. Save to csv.
@@ -217,7 +191,7 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
     """
     # Scrape data
     driver = startWebdriver()
-    lines = {}
+    metrics_data = {}
     base_url = ADV_URL.format(
         video_id=video_id,
         time_period=time_period.value,
@@ -225,71 +199,24 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
         dimension="{dimension}"
     )
     try:
-        # Get data for totals
+        # Get data for totals and per traffic source
         for metric_key, metric_code in METRICS.items():
             # Reset elements with random website
             driver.get("https://www.pictureofhotdog.com/")
 
-            url = base_url.format(metric=metric_code, dimension=DIMENSIONS[0])
+            url = base_url.format(metric=metric_code, dimension=Dimensions.traffic_source.value)
             driver.get(url)
 
-            zoom_out(driver)
-
-            line_datum, _ = scrape(driver, totals=True)
-            lines[metric_key] = parse_line_data(line_datum, time_period)
-
-        # Get data per traffic source
-        for metric_key, metric_code in METRICS.items():
-            # likes and dislikes aren't measured per traffic source, so skip
-            if metric_key in ["likes", "dislikes"]:
-                continue
-
-            line_data = {}
-
-            # Reset elements with random website
-            driver.get("https://www.pictureofhotdog.com/")
-
-            url = base_url.format(metric=metric_code, dimension=DIMENSIONS[1])
-            driver.get(url)
-
-            zoom_out(driver)
-
-            # Wait 10 seconds for the checkbox elements to show up
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, '.breakdown-row #checkbox-container'))
-            )
-            checkboxes = driver.find_elements_by_css_selector(
-                '.breakdown-row #checkbox-container')
-            for checkbox in checkboxes:
-                checkbox.click()
-                line_datum, traffic_source = scrape(driver)
-
-                # Don't save stuff that's not logged for impressions
-                if metric_key != "impressions" or \
-                   traffic_source in TRAFFIC_SOURCES_IMP.values():
-                    line_data[f"{metric_key}_{traffic_source}"] = line_datum
-
-                checkbox.click()
-
-            for key, line_datum in line_data.items():
-                line_data[key] = parse_line_data(line_datum, time_period)
-
-            lines.update(line_data)
-
-            # Add empty traffic sources for the fieldnames
-            traffic_sources = TRAFFIC_SOURCES.values()
-            if metric_key == "impressions":
-                traffic_sources = TRAFFIC_SOURCES_IMP.values()
-
-            for traffic_source in traffic_sources:
-                if f"{metric_key}_{traffic_source}" not in lines and \
-                   traffic_source != "Total":
-                    lines[f"{metric_key}_{traffic_source}"] = [[0, 0]]
+            metrics_data[metric_key] = scrape(driver)
     finally:
         driver.quit()
 
-    video_data = assemble_data(lines, upload_datetime, time_period)
+    # We want at least hourly data
+    time_delta = check_granularity(metrics_data)
+    if time_delta > dt.timedelta(hours=2):
+        return False
+
+    video_data = assemble_data(metrics_data)
     if not save_data(video_data, f"{time_period.name}_{video_id}", dir):
         return False
     return True
@@ -298,6 +225,7 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
 # MAIN ------------------------------------------------------------------------
 
 @get_logging_decorator(os.path.join(DATA_DIR, "script_logs", SCRIPT_NAME))
+@catch_user_data_error
 def main():
     # Get command line argument
     try:
@@ -317,7 +245,7 @@ def main():
         print("Scrape since publish: no recent videos")
 
     for video in recent_videos:
-        still_recent = process(video["id"], video["date"], DATA_DIR, time_period)
+        still_recent = process(video["id"], DATA_DIR, time_period)
         if not still_recent:
             adjust_video_log(
                 video["date"],

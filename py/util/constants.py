@@ -47,10 +47,9 @@ TRAFFIC_SOURCES.update(TRAFFIC_SOURCES_IMP)
 # Inverted dictionary
 TRAFFIC_SOURCES_INV = {v: k for k, v in TRAFFIC_SOURCES.items()}
 
-DIMENSIONS = [
-    "VIDEO",
-    "TRAFFIC_SOURCE_TYPE",
-]
+class Dimensions(Enum):
+    total = "VIDEO"
+    traffic_source = "TRAFFIC_SOURCE_TYPE"
 
 # The URL for the Advanced Analytics display
 ADV_URL             = "https://studio.youtube.com/channel/{channel_id}/analytics/tab-overview/period-default/explore?entity_type=VIDEO&entity_id={video_id}&time_period={time_period}&explore_type=TABLE_AND_CHART&metric={metric}&granularity=DAY&t_metrics=RATINGS_DISLIKES&t_metrics=RATINGS_LIKES&t_metrics=VIEWS&t_metrics=WATCH_TIME&t_metrics=AVERAGE_WATCH_TIME&t_metrics=VIDEO_THUMBNAIL_IMPRESSIONS&t_metrics=VIDEO_THUMBNAIL_IMPRESSIONS_VTR&v_metrics=VIEWS&v_metrics=WATCH_TIME&v_metrics=SUBSCRIBERS_NET_CHANGE&v_metrics=TOTAL_ESTIMATED_EARNINGS&v_metrics=VIDEO_THUMBNAIL_IMPRESSIONS&v_metrics=VIDEO_THUMBNAIL_IMPRESSIONS_VTR&dimension={dimension}&o_column=VIEWS&o_direction=ANALYTICS_ORDER_DIRECTION_DESC".format(

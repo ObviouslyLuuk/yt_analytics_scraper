@@ -20,7 +20,7 @@ import csv
 import os
 
 from util.log_videos import get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator
+from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error
 
 from util.custom_values import CHANNEL_ID, DATA_DIR
 from util.constants import ScrapeMode, ANALYTICS_URL, DAYS_OF_THE_WEEK
@@ -231,28 +231,19 @@ def save_data(data: list, title: str, dir: str='') -> None:
 
 
 def process(mode: ScrapeMode=ScrapeMode.channel, video_id: str='', 
-dir: str='', string: str='') -> None:
+dir: str='') -> None:
     """Weaves all basic functionality together"""
-    if not string:
-        # Scrape data
-        driver = startWebdriver()
-        try:
-            id = CHANNEL_ID
-            if mode == ScrapeMode.video:
-                id = video_id
-            card = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
-        finally:
-            driver.quit()
-
-        card_obj = parse_string(card)
-
-    else:
-        # Process string
-        card_obj = parse_string(string)
+    # Scrape data
+    driver = startWebdriver()
+    try:
         id = CHANNEL_ID
         if mode == ScrapeMode.video:
-            id = card_obj \
-                ["exploreConfig"]["restrictAndTimePeriodConfig"]["entity"]["id"]
+            id = video_id
+        card = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
+    finally:
+        driver.quit()
+
+    card_obj = parse_string(card)
 
     date_dict = init_date(card_obj["lastUpdated"])
 
@@ -262,6 +253,7 @@ dir: str='', string: str='') -> None:
 # MAIN ------------------------------------------------------------------------
 
 @get_logging_decorator(os.path.join(DATA_DIR, "script_logs", SCRIPT_NAME))
+@catch_user_data_error
 def main():
     process(dir=DATA_DIR)
 

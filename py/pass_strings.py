@@ -1,7 +1,23 @@
 from util.custom_values import DATA_DIR
-from util.constants import ScrapeMode
-from scrape_hourly import process
+from util.constants import ScrapeMode, CHANNEL_ID
+from scrape_hourly import parse_string, init_date, assemble_data, save_data
 import os
+
+def process_string(mode: ScrapeMode=ScrapeMode.channel, 
+dir: str='', string: str='') -> None:
+    """Weaves all basic functionality together"""
+    # Process string
+    card_obj = parse_string(string)
+    id = CHANNEL_ID
+    if mode == ScrapeMode.video:
+        id = card_obj \
+            ["exploreConfig"]["restrictAndTimePeriodConfig"]["entity"]["id"]
+
+    date_dict = init_date(card_obj["lastUpdated"])
+
+    data = assemble_data(card_obj, date_dict, mode)
+    save_data(data, f"Hourly_{id}", dir)
+
 
 def pass_strings(mode: ScrapeMode, name: str, dir: str='') -> None:
     """
@@ -32,7 +48,7 @@ def pass_strings(mode: ScrapeMode, name: str, dir: str='') -> None:
         with open(dir+filename, "r") as f:
             string = f.read()
         print(f"Parsing file: {filename}")
-        process(mode, string=string, dir=DATA_DIR)
+        process_string(mode, string=string, dir=DATA_DIR)
 
 if __name__ == "__main__":
     pass_strings(ScrapeMode.video, "EnergyStuck", DATA_DIR+"data\\")
