@@ -210,11 +210,6 @@ def save_data(data: list, title: str, dir: str='') -> None:
         if len(data) < 1:
             print("No new realtime data to add")
             return
-        # # Can't append because sometimes new columns are added
-        # # which requires an update to the header
-        # with open(filepath, "a", newline='') as f:
-        #     writer = csv.DictWriter(f, fieldnames)
-        #     writer.writerows(data)
 
         read_data.extend(data)
         data = read_data

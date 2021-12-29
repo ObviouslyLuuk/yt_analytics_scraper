@@ -2,7 +2,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-from util.custom_values import CHROMEDRIVER_PATH, CHROME_PROFILES, CHROME_PROFILE, DATA_DIR
+from util.custom_values import CHROMEDRIVER_PATH, USER_DATA_PATH, CHROME_PROFILE, USER_DATA_BACKUP_PATH
 from util.helpers import reset_user_data
 
 def startWebdriver() -> webdriver.Chrome:
@@ -13,7 +13,7 @@ def startWebdriver() -> webdriver.Chrome:
 
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("user-data-dir="+CHROME_PROFILES)
+    chrome_options.add_argument("user-data-dir="+USER_DATA_PATH)
     chrome_options.add_argument("profile-directory="+CHROME_PROFILE)
     # chrome_options.add_argument("--window-size=10,10")
     chrome_options.add_argument("--start-maximized")
@@ -24,8 +24,7 @@ def startWebdriver() -> webdriver.Chrome:
     return webdriver.Chrome(CHROMEDRIVER_PATH, options=chrome_options)
 
 if __name__ == "__main__":
-    import os
-    reset_user_data(os.path.join(DATA_DIR, "User Data"), os.path.join(DATA_DIR, "backup/User Data(backup)"))
+    reset_user_data(USER_DATA_PATH, USER_DATA_BACKUP_PATH)
     driver = startWebdriver()
     driver.quit()
 
