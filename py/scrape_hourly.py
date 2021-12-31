@@ -31,95 +31,64 @@ SCRIPT_NAME = os.path.basename(__file__)[:-len(".py")]
 
 
 def scrape(driver, URL: str) -> str:
-    """Scrapes YouTube analytics for the recent data from the mini-card"""
+    """
+    Scrapes YouTube analytics for the recent data from the card.
+    like:
+        {
+            "last48HoursData": {
+                "totalMetricValue": <str: total views in the timeframe, eg '745'>,
+                "mainChart": {
+                    "data": [
+                        {
+                            "hovercardInfo": {
+                                "domainText": <Timeframe, eg 'Monday, 1:00 - 2:00 PM'>
+                            },
+                            "x": <int: millisecond timestamp of datapoint>,
+                            "y": <int: metric value>,
+                        },
+                    ],
+                },
+                "table": [
+                    {
+                        "sparkChartPercentages": [
+                            <float: percentage of chart height>
+                        ],
+                        "title": <name of traffic source, eg 'Channel pages'>,
+                        "value": <str: percentage this traffic source is of the total, eg '70.6%'>,
+                    }
+                ],
+            },
+            "last60MinutesData": {
+                <same as last48HoursData>
+            }
+        }
+    """
     # Open URL
     driver.get(URL)
 
     # Wait a second so you're not locating the page that was already loaded
     time.sleep(1)
 
+    card_css = "yta-latest-activity-card"
+
     # Wait 10 seconds for the information element to show up
-    card_element = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, "//yta-latest-activity-card"))
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, card_css))
     )
-    return card_element.get_attribute("mini-card")
-
-# PARSING ---------------------------------------------------------------------
-
-
-def parse_hour(date_str: str) -> tuple:
-    # Remove days from date_str
-    days = DAYS_OF_THE_WEEK.copy()
-    days.extend(["Today", "Yesterday", "Tomorrow"])
-    for day in days:
-        date_str = date_str.replace(day+", ", "")
-
-    # Split into start and end, and add AM/PM to start where necessary
-    hour_split = date_str.split('-')
-    start = hour_split[0]
-    end = hour_split[1].lstrip(' ')
-    if len(start.rstrip(' ').split(' ')) == 1:
-        start += end.split(' ')[1]
-    else:
-        start = start.rstrip(' ')
-
-    # Turn into 24-hour scale
-    start_time = dt.datetime.strptime(start, '%I:%M %p').strftime('%H:%M')
-    end_time = dt.datetime.strptime(end, '%I:%M %p').strftime('%H:%M')
-
-    return start_time, end_time
-
-
-def parse_datetime(row: dict) -> dt.datetime:
-    return dt.datetime.strptime(f'{row["date"]} {row["start"]}', '%Y-%m-%d %H:%M')
-
-
-def parse_string(string: str) -> dict:
-    # Get en hyphen character and replace with normal hyphen
-    char = json.loads(string) \
-        ["last48HoursData"]["mainChart"]["data"][0]["hovercardInfo"]["domainText"] \
-        .split(',')[1].lstrip(' :APM0123456789').split(' ')[0]
-    return json.loads(string.replace(char, '-'))
+    card_data = driver.execute_script(f"return document.querySelector('{card_css}').card")
+    return card_data
 
 # OTHER -----------------------------------------------------------------------
 
-
-def init_date(last_updated: str) -> dict:
-    # Call the last updated date "Today"
-    datetime_str = last_updated.split(".")[0]
-    datetime = dt.datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M:%S')
-    today = datetime.date()
-
-    # today = dt.date.today()
-    yesterday = today - dt.timedelta(days=1)
-    day_before_yesterday = today - dt.timedelta(days=2)
-
-    # Make dictionary to replace day names with actual dates
-    date_dict = {
-        "Today": today,
-        "Yesterday": yesterday,
-    }
-    for day in DAYS_OF_THE_WEEK:
-        date_dict[day] = day_before_yesterday
-
-    return date_dict
-
-
-def assemble_data(card_obj: dict, date_dict: dict, mode: ScrapeMode) -> list:
+def assemble_data(card_obj: dict, mode: ScrapeMode) -> list:
     data = []
 
     for datapoint in card_obj['last48HoursData']['mainChart']['data']:
-        start_time, end_time = parse_hour(
-            datapoint['hovercardInfo']['domainText'])
-        date = date_dict[
-            datapoint['hovercardInfo']['domainText'].split(',')[0]
-        ]
+        datetime = dt.datetime.fromtimestamp(datapoint['x']/1000, dt.timezone.utc)
 
         data.append({
-            "date": date,
-            "start": start_time,
-            "end": end_time,
-            "day": date.strftime('%a'),
+            "datetime(UTC)": datetime,
+            "day": datetime.strftime('%a'),
             "views": datapoint['y'],
         })
 
@@ -154,10 +123,8 @@ def assemble_data(card_obj: dict, date_dict: dict, mode: ScrapeMode) -> list:
                 datapoint[title] = int(percentage_data[i] * views_per_percent)
                 data[i] = datapoint
 
-    # pop last datapoint because it is ongoing
-    data.pop()
-
-    return data
+    # ignore last datapoint because it is ongoing
+    return data[:-1]
 
 
 def save_data(data: list, title: str, dir: str='') -> None:
@@ -181,17 +148,15 @@ def save_data(data: list, title: str, dir: str='') -> None:
                 fieldnames.append(key)
 
         # If there's no overlap
-        if parse_datetime(data[0]) > parse_datetime(read_data[-1]):
+        if data[0]['datetime(UTC)'] > dt.datetime.strptime(read_data[-1]['datetime(UTC)'], "%Y-%m-%d %H:%M:%S%z"):
             # Add missing in-between hours
             new_data = []
-            new_datetime = parse_datetime(read_data[-1]) + dt.timedelta(hours=1)
-            while new_datetime < parse_datetime(data[0]):
+            new_datetime = dt.datetime.strptime(read_data[-1], "%Y-%m-%d %H:%M:%S%z") + dt.timedelta(hours=1)
+            while new_datetime < data[0]['datetime(UTC)']:
                 new_data.append({
-                    "date": new_datetime.strftime('%Y-%m-%d'),
-                    "start": new_datetime.strftime('%H:%M'),
-                    "end": (new_datetime + dt.timedelta(hours=1)).strftime('%H:%M'),
+                    "datetime(UTC)": new_datetime,
                     "day": new_datetime.strftime('%a'),
-                    "views": "missing",
+                    "views": "X",
                 })
                 new_datetime += dt.timedelta(hours=1)
             new_data.extend(data)
@@ -202,7 +167,7 @@ def save_data(data: list, title: str, dir: str='') -> None:
             # Check at what index the new data starts
             index = 0
             for row in data:
-                if parse_datetime(row) > parse_datetime(read_data[-1]):
+                if row['datetime(UTC)'] > dt.datetime.strptime(read_data[-1]['datetime(UTC)'], "%Y-%m-%d %H:%M:%S%z"):
                     break
                 index += 1
             data = data[index:]
@@ -234,15 +199,11 @@ dir: str='') -> None:
         id = CHANNEL_ID
         if mode == ScrapeMode.video:
             id = video_id
-        card = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
+        card_data = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
     finally:
         driver.quit()
 
-    card_obj = parse_string(card)
-
-    date_dict = init_date(card_obj["lastUpdated"])
-
-    data = assemble_data(card_obj, date_dict, mode)
+    data = assemble_data(card_data, mode)
     save_data(data, f"Hourly_{id}", dir)
 
 # MAIN ------------------------------------------------------------------------

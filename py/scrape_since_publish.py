@@ -49,14 +49,14 @@ def scrape(driver) -> list:
                 "data": [
                     {
                         "hovercardInfo": {
-                            "relativeDateFormatted": <relative time since upload, eg 'First 2 days'>
-                            "entityTitle": <plaintext category name, eg End Screens>
-                        }
-                        "x": <millisecond timestamp of datapoint>
-                        "y": <metric value>
+                            "relativeDateFormatted": <relative time since upload, eg 'First 2 days'>,
+                            "entityTitle": <plaintext category name, eg End Screens>,
+                        },
+                        "x": <int: millisecond timestamp of datapoint>,
+                        "y": <int: metric value>,
                     },
-                ]
-                "name": <category name, eg 'END_SCREEN_main'>
+                ],
+                "name": <category name, eg 'END_SCREEN_main'>,
             },
         ]
     """
