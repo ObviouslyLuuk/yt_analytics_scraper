@@ -152,6 +152,7 @@ def save_data(data: list, title: str, dir: str='') -> None:
             # Add missing in-between hours
             new_data = []
             new_datetime = dt.datetime.strptime(read_data[-1], "%Y-%m-%d %H:%M:%S%z") + dt.timedelta(hours=1)
+            # TODO: stop this madness and find a better, more storage efficient way
             while new_datetime < data[0]['datetime(UTC)']:
                 new_data.append({
                     "datetime(UTC)": new_datetime,
