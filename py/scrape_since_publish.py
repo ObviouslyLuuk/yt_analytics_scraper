@@ -94,10 +94,14 @@ def assemble_data(metrics_data: dict) -> list:
         if metric_key == "watchtime":
             metric_key += "(Hours)"
             factor = 1/60/60/1000 # Originally the watchtime data is in milliseconds
-            value_fn = lambda x: round(x*factor, 2)         
+            value_fn = lambda x: round(x*factor, 2)
 
         for category in metric_data_list:
-            traffic_source = TRAFFIC_SOURCES[category['name']]
+            try:
+                traffic_source = TRAFFIC_SOURCES[category['name']]
+            except KeyError:
+                print("Unknown traffic source: YouTube has likely added some")
+                return None
 
             # Don't save stuff that's not logged for impressions
             if metric_key == "impressions" and \
@@ -107,7 +111,7 @@ def assemble_data(metrics_data: dict) -> list:
             for time_unit, datapoint in enumerate(category['data']):
                 datetime = dt.datetime.fromtimestamp(datapoint['x']/1000, dt.timezone.utc)
                 value = value_fn(datapoint['y'])
-                time_delta = datapoint['hovercardInfo']['relativeDateFormatted']
+                time_delta = datapoint['hovercardInfo']['relativeDateFormatted'] # Time delta from publish time
 
                 if len(data) <= time_unit:
                     # Add new row when necessary
@@ -214,6 +218,12 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
     # We want at least hourly data
     time_delta = check_granularity(metrics_data)
     if time_delta > dt.timedelta(hours=2):
+        print("timedelta between datapoints is larger than 2 hours")
+        return False
+    
+    # We don't want minutes if we're getting since_published, which should be hourly
+    if time_delta < dt.timedelta(minutes=2):
+        print("timedelta between two datapoints is smaller than 2 minutes")
         return False
 
     video_data = assemble_data(metrics_data)
@@ -245,14 +255,7 @@ def main():
         print("Scrape since publish: no recent videos")
 
     for video in recent_videos:
-        still_recent = process(video["id"], DATA_DIR, time_period)
-        if not still_recent:
-            adjust_video_log(
-                video["date"],
-                video["id"],
-                video["title"],
-                recent=0,
-            )
+        process(video["id"], DATA_DIR, time_period)
 
 if __name__ == "__main__":
     main()

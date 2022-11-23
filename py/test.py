@@ -17,6 +17,7 @@ def startWebdriver() -> webdriver.Chrome:
     chrome_options.add_argument("profile-directory="+CHROME_PROFILE)
     # chrome_options.add_argument("--window-size=10,10")
     chrome_options.add_argument("--start-maximized")
+    chrome_options.binary_location = "C:\Program Files\Google\Chrome Beta\Application\chrome.exe"
 
     # chrome_options.add_argument("--disable-dev-shm-usage") # https://stackoverflow.com/questions/50642308/webdriverexception-unknown-error-devtoolsactiveport-file-doesnt-exist-while-t
     chrome_options.add_argument("disable-infobars") # disabling infobars

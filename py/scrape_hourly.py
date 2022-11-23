@@ -147,31 +147,14 @@ def save_data(data: list, title: str, dir: str='') -> None:
             if key not in fieldnames:
                 fieldnames.append(key)
 
-        # If there's no overlap
-        if data[0]['datetime(UTC)'] > dt.datetime.strptime(read_data[-1]['datetime(UTC)'], "%Y-%m-%d %H:%M:%S%z"):
-            # Add missing in-between hours
-            new_data = []
-            new_datetime = dt.datetime.strptime(read_data[-1], "%Y-%m-%d %H:%M:%S%z") + dt.timedelta(hours=1)
-            # TODO: stop this madness and find a better, more storage efficient way
-            while new_datetime < data[0]['datetime(UTC)']:
-                new_data.append({
-                    "datetime(UTC)": new_datetime,
-                    "day": new_datetime.strftime('%a'),
-                    "views": "X",
-                })
-                new_datetime += dt.timedelta(hours=1)
-            new_data.extend(data)
-            data = new_data
-
-        else:
-            # Append only new data
-            # Check at what index the new data starts
-            index = 0
-            for row in data:
-                if row['datetime(UTC)'] > dt.datetime.strptime(read_data[-1]['datetime(UTC)'], "%Y-%m-%d %H:%M:%S%z"):
-                    break
-                index += 1
-            data = data[index:]
+        # Append only new data
+        # Check at what index the new data starts
+        index = 0
+        for row in data:
+            if row['datetime(UTC)'] > dt.datetime.strptime(read_data[-1]['datetime(UTC)'], "%Y-%m-%d %H:%M:%S%z"):
+                break
+            index += 1
+        data = data[index:]
 
         if len(data) < 1:
             print("No new realtime data to add")
@@ -201,11 +184,15 @@ dir: str='') -> None:
         if mode == ScrapeMode.video:
             id = video_id
         card_data = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
+    except Exception as e:
+        print(e)
+        card_data = None
     finally:
         driver.quit()
 
-    data = assemble_data(card_data, mode)
-    save_data(data, f"Hourly_{id}", dir)
+    if card_data != None:
+        data = assemble_data(card_data, mode)
+        save_data(data, f"Hourly_{id}", dir)
 
 # MAIN ------------------------------------------------------------------------
 

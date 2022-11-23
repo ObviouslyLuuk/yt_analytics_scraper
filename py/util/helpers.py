@@ -2,6 +2,7 @@
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
 from .custom_values import CHROMEDRIVER_PATH, USER_DATA_PATH, CHROME_PROFILE, USER_DATA_BACKUP_PATH
 
@@ -15,8 +16,9 @@ import logging
 import functools
 import datetime as dt
 
-def startWebdriver() -> webdriver.Chrome:
-    """Starts the selenium webdriver and adds options"""
+def startWebdriver(use_webdriver_manager: bool = True) -> webdriver.Chrome:
+    """Starts the selenium webdriver and adds options. If use_webdriver_manager is True, always downloads and uses the latest chromedriver.
+    Could update this further with: https://stackoverflow.com/questions/62017043/automatic-download-of-appropriate-chromedriver-for-selenium-in-python"""
 
     chrome_options = Options()
     chrome_options.add_argument("--disable-extensions")
@@ -25,8 +27,13 @@ def startWebdriver() -> webdriver.Chrome:
     chrome_options.add_argument("profile-directory="+CHROME_PROFILE)
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("disable-infobars")
+    chrome_options.binary_location = "C:\Program Files\Google\Chrome Beta\Application\chrome.exe"
 
-    return webdriver.Chrome(CHROMEDRIVER_PATH, options=chrome_options)
+    driver_path = CHROMEDRIVER_PATH
+    if use_webdriver_manager:
+        driver_path = ChromeDriverManager().install()
+
+    return webdriver.Chrome(driver_path, options=chrome_options)
 
 
 def reset_user_data(dir, replace_dir):

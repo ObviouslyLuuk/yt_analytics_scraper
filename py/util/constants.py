@@ -8,7 +8,8 @@ class ScrapeMode(Enum):
     channel = 0
     video = 1
 
-ANALYTICS_URL        = "https://studio.youtube.com/{mode}/{id}/analytics/tab-overview/period-default"
+ANALYTICS_URL       = "https://studio.youtube.com/{mode}/{id}/analytics/tab-overview/period-default"
+VIDEOS_URL          = "https://studio.youtube.com/channel/{channel_id}/videos/{upload_or_live}"
 DAYS_OF_THE_WEEK    = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 # -----------------------------------------------------------------------------
@@ -42,6 +43,9 @@ TRAFFIC_SOURCES = {
 	"YT_OTHER_PAGE_main"            : "Other YouTube features",
 	"UNKNOWN_MOBILE_OR_DIRECT_main" : "Direct or unknown",
     "SHORTS_main"                   : "Shorts feed",
+    "ADVERTISING_main"              : "Advertising",
+    "ANNOTATION_main"               : "Cards and annotations",
+    "HASHTAGS_main"                 : "Hashtag pages",
 }
 TRAFFIC_SOURCES.update(TRAFFIC_SOURCES_IMP)
 # Inverted dictionary
