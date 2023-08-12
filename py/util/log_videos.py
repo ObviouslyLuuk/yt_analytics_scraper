@@ -2,6 +2,7 @@ import csv
 import datetime as dt
 import os
 from urllib.request import urlopen
+import scrapetube
 
 # Selenium stuff
 from selenium import webdriver
@@ -24,6 +25,15 @@ def scrape_recent_video_ids(driver, upload_or_live="live"):
     wait_for_element(driver, "ytcp-video-list-cell-video")
     return driver.execute_script('return Array.from(document.querySelectorAll("ytcp-video-list-cell-video")).map((e)=>{return e.__data.video.videoId})')
 
+def scrape_recent_video_ids_by_scrapetube(logged_ids: list):
+    """Return list of recent video ids. Use scrapetube to scrape the video ids."""
+    videos = scrapetube.get_channel(CHANNEL_ID)
+    new_ids = []
+    for video in videos:
+        if video["videoId"] in logged_ids:
+            break
+        new_ids.append(video['videoId'])
+    return new_ids
 
 def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1, precise: int=0) -> None:
     """
@@ -111,11 +121,16 @@ def update_video_log(video_ids: List[str]=[]) -> None:
     # Scrape video ids if not given
     driver = startWebdriver()
     try:
-        if not video_ids:
-            video_ids = scrape_recent_video_ids(driver)
-
         # No new videos if the video ids were already in the log
         logged_video_ids = [vid["id"] for vid in logged_videos.values()]
+
+        if not video_ids:
+            try:
+                video_ids = scrape_recent_video_ids_by_scrapetube(logged_video_ids)
+            except Exception as e:
+                print(e)
+                print("Falling back to scraping by YouTube Studio")
+                video_ids = scrape_recent_video_ids(driver)
 
         # Only scrape videos that aren't in the log or don't have a precise datetime
         video_ids = [id for id in video_ids if id not in logged_video_ids or not logged_videos[id]["precise"]]
@@ -127,7 +142,9 @@ def update_video_log(video_ids: List[str]=[]) -> None:
         # Scrape title and datetime and add video
         videos = scrape_videos_basics(driver, video_ids)
         for id, dict in videos.items():
-            print(f"Adding new video to log: {dict}")
+            # dict sometimes contains characters that map to undefined, unless utf-8 encoding is used
+            enc_dict = {k: v.encode('utf-8') if type(v)==str else v for k, v in dict.items()}
+            print(f"Adding new video to log: {enc_dict}")
             adjust_video_log(dict["datetime"], id, dict["title"], precise=dict["precise"])
     finally:
         driver.quit()
@@ -166,10 +183,11 @@ def scrape_videos_basics(driver, video_ids: List[str]) -> Dict[str, Dict[str,Uni
         print("Falling back to scraping by YouTube DataViewer")
         try:
             videos = scrape_videos_basics_by_dataviewer(driver, video_ids)
+            # raise Exception("Skipping YouTube DataViewer (stuck)")
         except Exception as e:
             print(e)
             print("Falling back to extracting by video page")
-            videos = extract_videos_basics_by_page(driver, video_ids)
+            videos = extract_videos_basics_by_page(video_ids)
     return videos
 
 

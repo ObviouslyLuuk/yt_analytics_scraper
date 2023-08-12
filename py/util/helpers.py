@@ -104,7 +104,9 @@ def get_logging_decorator(filename):
             try:
                 return func(*args, **kwargs)
             except Exception as err:
+                print("Error: ", err)
                 logging.error(err)
+                raise err
         return wrapper
     return logging_decorator
 
