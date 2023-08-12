@@ -6,6 +6,4 @@ ADDITIONS:
 scrape_since_publish.py:
 - when video datetime is not precise in the video log, get precise datetime from 24h view
 - when missing hourly data, get data from since_published view (probably actually do this when visualizing, because it's saved anyway)
-log_videos.py:
-- add logged videos with imprecise datetime to video ids to scrape
 

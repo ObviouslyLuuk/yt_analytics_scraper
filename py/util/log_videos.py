@@ -132,8 +132,10 @@ def update_video_log(video_ids: List[str]=[]) -> None:
                 print("Falling back to scraping by YouTube Studio")
                 video_ids = scrape_recent_video_ids(driver)
 
-        # Only scrape videos that aren't in the log or don't have a precise datetime
-        video_ids = [id for id in video_ids if id not in logged_video_ids or not logged_videos[id]["precise"]]
+        # Only scrape videos that aren't in the log
+        video_ids = [id for id in video_ids if id not in logged_video_ids]
+        # Add videos that don't have precise datetime
+        video_ids += [id for id, video in logged_videos.items() if video["precise"] == "0"]
         if not video_ids:
             driver.quit()
             print(f"No new videos")
@@ -222,6 +224,9 @@ def extract_videos_basics_by_page(video_ids: List[str]) -> Dict[str, Dict[str,Un
 
     for video_id in video_ids:
         title, date = extract_video_basics_by_page(video_id)
+        if not title or not date:
+            print(f"Couldn't extract video basics for {video_id}, might be private")
+            continue
         videos[video_id] = {"title": title, "datetime": date, "precise": 0}
     return videos
 
@@ -232,7 +237,11 @@ def extract_video_basics_by_page(id: str) -> tuple:
         html = f.read().decode("utf8")
     
     title = extract_from_str(html, '<meta itemprop="name" content="',       '"><meta ')
+    assert len(title) <= 100, f"Found title length is {len(title)} chars long, should be between 1 and 100"
     date  = extract_from_str(html, '<meta itemprop="uploadDate" content="', '"><meta ')
+    assert len(date) <= 10, f"Found date length is {len(date)} chars long, should be 10"
+    if not title or not date:
+        return (None, None)
     date = dt.datetime.strptime(date, '%Y-%m-%d')
     return (title, date)
 

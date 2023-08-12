@@ -148,6 +148,11 @@ def extract_from_str(str, pre_str, post_str):
     """Return string between pre_str and post_str in str"""
     # Find pre string in html
     start = str.find(pre_str)
+
+    # If pre string not found, return empty string
+    if start == -1:
+        return ""
+
     str = str[start+len(pre_str):]
     # Find post string in title and return
     return str[:str.find(post_str)]
