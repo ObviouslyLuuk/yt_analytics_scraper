@@ -20,7 +20,7 @@ import csv
 import os
 
 from util.log_videos import get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error
+from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error, test_YouTube_login, wait_for_element
 
 from util.custom_values import CHANNEL_ID, DATA_DIR
 from util.constants import ScrapeMode, ANALYTICS_URL, DAYS_OF_THE_WEEK
@@ -66,15 +66,10 @@ def scrape(driver, URL: str) -> str:
     # Open URL
     driver.get(URL)
 
-    # Wait a second so you're not locating the page that was already loaded
-    time.sleep(1)
-
     card_css = "yta-latest-activity-card"
 
     # Wait 10 seconds for the information element to show up
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, card_css))
-    )
+    wait_for_element(driver, card_css)
     card_data = driver.execute_script(f"return document.querySelector('{card_css}').card")
     return card_data
 
@@ -184,27 +179,31 @@ dir: str='') -> None:
         if mode == ScrapeMode.video:
             id = video_id
         card_data = scrape(driver, ANALYTICS_URL.format(mode=mode.name, id=id))
-    except Exception as e:
-        print(e)
-        card_data = None
     finally:
         driver.quit()
 
-    if card_data != None:
-        data = assemble_data(card_data, mode)
-        save_data(data, f"Hourly_{id}", dir)
+    data = assemble_data(card_data, mode)
+    save_data(data, f"Hourly_{id}", dir)
 
 # MAIN ------------------------------------------------------------------------
 
 @get_logging_decorator(os.path.join(DATA_DIR, "script_logs", SCRIPT_NAME))
 @catch_user_data_error
 def main():
-    process(dir=DATA_DIR)
+    # Test webdriver and login, and log details
+    driver = startWebdriver(printing=True)
+    try:
+        test_YouTube_login(driver, email=True)
+    finally:
+        driver.quit()
+
+    # Get hourly channel data
+    process(dir=DATA_DIR) 
 
     # Get data for the two most recent videos
     # They don't need to be younger than a month
     update_video_log()
-    for video in get_videos(False)[-2:]:
+    for video in get_videos(False)[-2:]: # last two videos
         process(ScrapeMode.video, video["id"], DATA_DIR)
 
 if __name__ == "__main__":

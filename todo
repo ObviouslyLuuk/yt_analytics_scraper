@@ -1,0 +1,10 @@
+FIXES:
+- for some reason update_video_log() gives an encoding error when run from the scrape .py files, but not from testing.ipynb
+- found out when the API quota is a problem with api_scrape.py, and make sure it raises an exception when it is
+
+
+ADDITIONS:
+scrape_since_publish.py:
+- when video datetime is not precise in the video log, get precise datetime from 24h view
+- when missing hourly data, get data from since_published view (probably actually do this when visualizing, because it's saved anyway)
+

@@ -1,3 +1,9 @@
+"""
+This seems to have stopped working because it says the quota is exceeded.
+I don't think there used to be a quota, because you could just test without being logged in. However, the day after, it works again?
+Test at: https://developers.google.com/youtube/v3/docs/videos/list?apix=true
+"""
+
 # Selenium stuff
 # For a custom wait
 from selenium.webdriver.common.by import By
@@ -148,7 +154,7 @@ def scrape_playlist_info(driver, playlist_ids):
         return videos
 
 
-def scrape_videos(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
+def scrape_videos_basics_by_api(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
     """
     Return dictionary of video upload date and title by video id.
     """
@@ -175,11 +181,11 @@ def scrape_videos(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,
             # Parse the video json into our format
             video_dict = parse_video_item_str(json_string)
             if not video_dict:
-                print(f"Couldn't find {vid_id}: might be private")
+                print(f"Couldn't find {vid_id}: might be private [{__file__}]")
                 continue
             videos[vid_id] = video_dict
     except Exception as e:
-        print("error whilst scraping video info from YouTube api: ", e)
+        print("error whilst scraping video info from YouTube api: ", e, f"[{__file__}]")
     finally:
         driver.quit()
         return videos

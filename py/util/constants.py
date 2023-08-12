@@ -10,6 +10,7 @@ class ScrapeMode(Enum):
 
 ANALYTICS_URL       = "https://studio.youtube.com/{mode}/{id}/analytics/tab-overview/period-default"
 VIDEOS_URL          = "https://studio.youtube.com/channel/{channel_id}/videos/{upload_or_live}"
+VIDEO_URL           = "https://www.youtube.com/watch?v={video_id}"
 DAYS_OF_THE_WEEK    = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 # -----------------------------------------------------------------------------

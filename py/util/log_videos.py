@@ -1,45 +1,42 @@
 import csv
 import datetime as dt
 import os
+from urllib.request import urlopen
 
 # Selenium stuff
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 from typing import List, Dict, Union
 
-from .helpers import startWebdriver
+from .helpers import startWebdriver, extract_from_str, wait_for_element
 
 from .custom_values import CHANNEL_ID, DATA_DIR
-from .constants import VIDEOS_URL
+from .constants import VIDEOS_URL, VIDEO_URL
 
-from .api_scrape import scrape_videos
+from .api_scrape import scrape_videos_basics_by_api
 
 
 def scrape_recent_video_ids(driver, upload_or_live="live"):
     """Return list of recent video ids. upload_or_live can be upload or live. live actually finds all video ids, not just lives, for some reason."""
     driver.get(VIDEOS_URL.format(channel_id=CHANNEL_ID, upload_or_live=upload_or_live))
 
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "ytcp-video-list-cell-video"))
-    )
+    wait_for_element(driver, "ytcp-video-list-cell-video")
     return driver.execute_script('return Array.from(document.querySelectorAll("ytcp-video-list-cell-video")).map((e)=>{return e.__data.video.videoId})')
 
 
-def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1) -> None:
+def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1, precise: int=0) -> None:
     """
     Reads videos from video log, adds given arguments (either adding a new video, 
     or adjusting an existing one), and then overwrites the video log.
     """
     try:
-        with open(DATA_DIR+"video_log.csv", "r") as f:
+        with open(DATA_DIR+"video_log.csv", "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             videos = []
             for video in reader:
                 if video["id"] == id:
-                    print("video already in log, overwriting entry")
+                    print(f"video already in log, overwriting entry [{__file__}]")
                     continue
                 videos.append(video)
     except FileNotFoundError:
@@ -51,10 +48,11 @@ def adjust_video_log(datetime: dt.datetime, id: str, title: str, recent: int=1) 
         "id": id,
         "title": title,
         "recent": recent,
+        "precise": precise
     })
     videos.sort(key=lambda video: dt.datetime.strptime(video["date"], '%Y-%m-%d %H:%M'))
 
-    with open(DATA_DIR+"video_log.csv", "w", newline='') as f:
+    with open(DATA_DIR+"video_log.csv", "w", newline='', encoding="utf-8") as f:
         writer = csv.DictWriter(f, videos[0].keys())
         writer.writeheader()
         writer.writerows(videos)
@@ -82,7 +80,7 @@ def get_videos(only_recent: bool=True) -> list:
         }
     """
     try:
-        with open(DATA_DIR+"video_log.csv", "r") as f:
+        with open(DATA_DIR+"video_log.csv", "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             videos = []
             for video in reader:
@@ -93,7 +91,7 @@ def get_videos(only_recent: bool=True) -> list:
                 videos.append(video)
     except FileNotFoundError:
         update_video_log()
-        print("No video log found: created one")
+        print(f"No video log found: created one [{__file__}]")
         videos = get_videos(only_recent)
 
     return videos
@@ -108,27 +106,31 @@ def update_video_log(video_ids: List[str]=[]) -> None:
     logged_videos = []
     if os.path.isfile(DATA_DIR+"video_log.csv"):
         logged_videos = get_videos(False)
+    logged_videos = {video["id"]: video for video in logged_videos}
 
     # Scrape video ids if not given
     driver = startWebdriver()
-    if not video_ids:
-        video_ids = scrape_recent_video_ids(driver)
+    try:
+        if not video_ids:
+            video_ids = scrape_recent_video_ids(driver)
 
-    # No new videos if the video ids were already in the log
-    logged_video_ids = [vid["id"] for vid in logged_videos]
-    print(video_ids)
-    video_ids = [id for id in video_ids if id not in logged_video_ids]
-    if not video_ids:
+        # No new videos if the video ids were already in the log
+        logged_video_ids = [vid["id"] for vid in logged_videos.values()]
+
+        # Only scrape videos that aren't in the log or don't have a precise datetime
+        video_ids = [id for id in video_ids if id not in logged_video_ids or not logged_videos[id]["precise"]]
+        if not video_ids:
+            driver.quit()
+            print(f"No new videos")
+            return
+        
+        # Scrape title and datetime and add video
+        videos = scrape_videos_basics(driver, video_ids)
+        for id, dict in videos.items():
+            print(f"Adding new video to log: {dict}")
+            adjust_video_log(dict["datetime"], id, dict["title"], precise=dict["precise"])
+    finally:
         driver.quit()
-        print("No new videos")
-        return
-    
-    # Scrape title and datetime and add video
-    videos = scrape_videos(driver, video_ids)
-    for id, dict in videos.items():
-        print(f"Adding new video to log: {dict}")
-        adjust_video_log(dict["datetime"], id, dict["title"])
-    driver.quit()
 
     update_video_log_recencies(get_videos(True))
 
@@ -147,5 +149,110 @@ def update_video_log_recencies(videos, days=31):
                 video["id"],
                 video["title"],
                 recent=0,
+                precise=video["precise"],
             )
             print(f"updated recency of {video['id']} to False")
+
+
+def scrape_videos_basics(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
+    """
+    Return dictionary of video upload date and title by video id. Uses API if possible, otherwise scrapes video page with less precise upload date.
+    """
+    try:
+        # videos = scrape_videos_basics_by_api(driver, video_ids)
+        raise Exception("Skipping API call (quota exceeded?)")
+    except Exception as e:
+        print(e)
+        print("Falling back to scraping by YouTube DataViewer")
+        try:
+            videos = scrape_videos_basics_by_dataviewer(driver, video_ids)
+        except Exception as e:
+            print(e)
+            print("Falling back to extracting by video page")
+            videos = extract_videos_basics_by_page(driver, video_ids)
+    return videos
+
+
+def scrape_videos_basics_by_page(driver, video_ids):
+    """
+    Return dictionary of video upload date and title by video id. Uses video page and cannot get precise upload time.
+    """
+    videos = {}
+
+    for video_id in video_ids:
+        driver.get(VIDEO_URL.format(video_id=video_id))
+
+        # Wait for page to load
+        wait_for_element(driver, "meta[itemprop='uploadDate']")
+
+        # Execute script to get upload date and title
+        videos[video_id] = driver.execute_script("""return {
+            datetime: document.querySelector("meta[itemprop='uploadDate']").content, 
+            title: document.querySelector("meta[itemprop='name']").content}""")
+        # Not actually datetime, just date, but we save it as datetime for consistency
+        videos[video_id]["datetime"] = dt.datetime.strptime(videos[video_id]["datetime"], '%Y-%m-%d')
+        videos[video_id]["precise"] = 0
+
+    return videos
+
+
+def extract_videos_basics_by_page(video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
+    """
+    Return dictionary of video upload date and title by video id. Uses video page and cannot get precise upload time. Most robust since it only relies on urlopen.
+    """
+    videos = {}
+
+    for video_id in video_ids:
+        title, date = extract_video_basics_by_page(video_id)
+        videos[video_id] = {"title": title, "datetime": date, "precise": 0}
+    return videos
+
+
+def extract_video_basics_by_page(id: str) -> tuple:
+    """Use video page to extract video datetime. Uses urlopen. Return (title, datetime)"""
+    with urlopen(VIDEO_URL.format(video_id=id)) as f:
+        html = f.read().decode("utf8")
+    
+    title = extract_from_str(html, '<meta itemprop="name" content="',       '"><meta ')
+    date  = extract_from_str(html, '<meta itemprop="uploadDate" content="', '"><meta ')
+    date = dt.datetime.strptime(date, '%Y-%m-%d')
+    return (title, date)
+
+
+def scrape_videos_basics_by_dataviewer(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
+    """
+    Return dictionary of video upload date and title by video id. Uses https://citizenevidence.amnestyusa.org/ (YouTube DataViewer) and gets precise upload time.
+    Fairly often the page gets stuck and gives a TimeoutException.
+    """
+    videos = {}
+
+    for video_id in video_ids:
+        title, datetime = scrape_video_basics_by_dataviewer(driver, video_id)
+        videos[video_id] = {"title": title, "datetime": datetime, "precise": 1}
+    return videos
+
+
+def scrape_video_basics_by_dataviewer(driver, video_id: str) -> tuple:
+    """Use https://citizenevidence.amnestyusa.org/ (YouTube DataViewer) to scrape video datetime. Return (title, datetime)
+    Fairly often the page gets stuck and gives a TimeoutException."""
+    # Get upload date and time (UTC)
+    driver.get("https://citizenevidence.amnestyusa.org/")
+
+    # Wait 10 seconds for the input element to show up
+    input = wait_for_element(driver, "#formInput")
+    input.send_keys(f"www.youtube.com/watch?v={video_id}")
+    driver.find_element_by_css_selector('#formInputButton').click()
+
+    # Wait 10 seconds for the output text to show up
+    try:
+        wait_for_element(driver, '#shortOutput > strong')
+    except TimeoutException as e:
+        raise TimeoutException(f"Amnesty page stuck")
+    title = driver.find_element_by_css_selector('#shortOutput > span > a').get_attribute('innerText')
+    output_elem = driver.find_element_by_css_selector('#shortOutput')
+    output_string = output_elem.get_attribute('innerText')
+    date_string = output_string.split('Upload Date (YYYY/MM/DD): ')[-1].split('\n')[0]
+    time_string = output_string.split('Upload Time (UTC): ')[-1].split(' (')[0]
+    datetime = dt.datetime.strptime(date_string+' '+time_string[0:-3], '%Y-%m-%d %H:%M')
+
+    return title, datetime

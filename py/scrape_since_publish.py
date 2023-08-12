@@ -29,7 +29,7 @@ import sys
 import os
 
 from util.log_videos import adjust_video_log, get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error
+from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error, test_YouTube_login, wait_for_element
 
 from util.custom_values import DATA_DIR
 from util.constants import METRICS, TimePeriod, TRAFFIC_SOURCES_IMP, \
@@ -63,10 +63,8 @@ def scrape(driver) -> list:
     # Css selectors
     chart_css = 'yta-line-chart-base'
 
-    # Wait 10 seconds for the line element to show up
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, chart_css))
-    )
+    # Wait max 10 seconds for the line element to show up
+    wait_for_element(driver, chart_css)
     metric_data_list = []
     totals_data = driver.execute_script("return document.querySelector('#explore-app > yta-explore-deep-dive').fetchedData.data.chartProperties.mainMetricData.data[0].totalsSeries")
     series_data_array = driver.execute_script("return Array.from( document.querySelector('#explore-app > yta-explore-deep-dive').fetchedData.data.chartProperties.mainMetricData.data[0].series.values() )")
@@ -246,13 +244,20 @@ def main():
     except KeyError:
         print("Usage: python scrape_since_publish.py <first_24h / since_published>")
 
+    # Test webdriver and login, and log details
+    driver = startWebdriver(printing=True)
+    try:
+        test_YouTube_login(driver)
+    finally:
+        driver.quit()
+
     # Scrape data for videos 
     # Only where hourly data is still displayed if time_period is since published
     update_video_log()
     recent_videos = get_videos(time_period == TimePeriod.since_published)
 
     if len(recent_videos) < 1:
-        print("Scrape since publish: no recent videos")
+        print("Scrape since publish: no recent videos found")
 
     for video in recent_videos:
         process(video["id"], DATA_DIR, time_period)
