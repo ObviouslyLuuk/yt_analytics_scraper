@@ -16,6 +16,7 @@ from .custom_values import CHANNEL_ID, DATA_DIR
 from .constants import VIDEOS_URL, VIDEO_URL
 
 from .api_scrape import scrape_videos_basics_by_api
+from .scrape_since_publish_functions import scrape_video_basics_by_analytics
 
 
 def scrape_recent_video_ids(driver, upload_or_live="live"):
@@ -184,12 +185,17 @@ def scrape_videos_basics(driver, video_ids: List[str]) -> Dict[str, Dict[str,Uni
         print(e)
         print("Falling back to scraping by YouTube DataViewer")
         try:
-            videos = scrape_videos_basics_by_dataviewer(driver, video_ids)
-            # raise Exception("Skipping YouTube DataViewer (stuck)")
+            # videos = scrape_videos_basics_by_dataviewer(driver, video_ids)
+            raise Exception("Skipping YouTube DataViewer (usually stuck)")
         except Exception as e:
             print(e)
-            print("Falling back to extracting by video page")
-            videos = extract_videos_basics_by_page(video_ids)
+            print("Falling back to scraping by YouTube Analytics")
+            try:
+                videos = scrape_videos_basics_by_analytics(driver, video_ids)
+            except Exception as e:
+                print(e)
+                print("Falling back to extracting by video page")
+                videos = extract_videos_basics_by_page(video_ids)
     return videos
 
 
@@ -200,6 +206,7 @@ def scrape_videos_basics_by_page(driver, video_ids):
     videos = {}
 
     for video_id in video_ids:
+        driver.get("https://www.pictureofhotdog.com/")
         driver.get(VIDEO_URL.format(video_id=video_id))
 
         # Wait for page to load
@@ -213,6 +220,19 @@ def scrape_videos_basics_by_page(driver, video_ids):
         videos[video_id]["datetime"] = dt.datetime.strptime(videos[video_id]["datetime"], '%Y-%m-%d')
         videos[video_id]["precise"] = 0
 
+    return videos
+
+
+def scrape_videos_basics_by_analytics(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
+    """
+    Return dictionary of video upload date and title by video id. Uses YouTube Analytics and gets precise upload time.
+    """
+    videos = {}
+
+    for video_id in video_ids:
+        driver.get("https://www.pictureofhotdog.com/")
+        title, datetime = scrape_video_basics_by_analytics(driver, video_id)
+        videos[video_id] = {"title": title, "datetime": datetime, "precise": 1}
     return videos
 
 
@@ -254,6 +274,7 @@ def scrape_videos_basics_by_dataviewer(driver, video_ids: List[str]) -> Dict[str
     videos = {}
 
     for video_id in video_ids:
+        driver.get("https://www.pictureofhotdog.com/")
         title, datetime = scrape_video_basics_by_dataviewer(driver, video_id)
         videos[video_id] = {"title": title, "datetime": datetime, "precise": 1}
     return videos
