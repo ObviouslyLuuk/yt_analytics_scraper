@@ -184,6 +184,7 @@ dir: str='') -> None:
 
     data = assemble_data(card_data, mode)
     save_data(data, f"Hourly_{id}", dir)
+    return data[-1].keys()
 
 # MAIN ------------------------------------------------------------------------
 
@@ -198,13 +199,26 @@ def main():
         driver.quit()
 
     # Get hourly channel data
-    process(dir=DATA_DIR) 
+    keys = process(dir=DATA_DIR)
+    relevant_video_ids = [k for k in keys if k not in ['datetime(UTC)', 'day', 'views']] # this is always three ids
 
-    # Get data for the two most recent videos
-    # They don't need to be younger than a month
+    # Get data for recent videos
     update_video_log()
-    for video in get_videos(False)[-2:]: # last two videos
-        process(ScrapeMode.video, video["id"], DATA_DIR)
+
+    # If the video is younger than 30 days, skip
+    # Because this data can still be scraped from since_published, and that's more precise
+    videos = get_videos(False)
+    last_n = 2
+    too_young_ids = [vid['id'] for vid in videos if dt.datetime.utcnow() - vid['date'] < dt.timedelta(days=30)]
+    last_video_ids = [vid['id'] for vid in videos[-last_n:] if vid['id'] not in too_young_ids] # last n videos
+    if len(last_video_ids) < 1:
+        print(f"Last {last_n} videos are <30 days old; should still be scraped with since_published (more precise)")
+
+    scrape_video_ids = list(set(relevant_video_ids).union(set(last_video_ids)).difference(set(too_young_ids)))
+    if len(scrape_video_ids) < 1:
+        print("Relevant 3 videos are all <30 days old; should be scraped with since_published (more precise)")
+    for video_id in scrape_video_ids:
+        process(ScrapeMode.video, video_id, DATA_DIR)
 
 if __name__ == "__main__":
     main()

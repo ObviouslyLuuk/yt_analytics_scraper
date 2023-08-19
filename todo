@@ -1,8 +1,18 @@
 FIXES:
-- found out when the API quota is a problem with api_scrape.py, and make sure it raises an exception when it is (low priority)
+- find out when the API quota is a problem with api_scrape.py, and make sure it raises an exception when it is (low priority)
 
 
 ADDITIONS:
 scrape_since_publish.py:
 - when missing hourly data, get data from since_published view (probably actually do this when visualizing, because it's saved anyway)
+
+in the end we want to A/B test thumbnails or titles so in that case we'd want minute-data from ~30 minutes before switching to maybe a bit longer after.
+we want to do this switch at a busy time when it's getting views of course, to get the most data, and 
+    for this kind of testing it's important to know the influence of other factors like time of day, day of week and whether a new video is uploaded,
+    to avoid these effects muddying the results. One option is to avoid these factors by trying to keep them constant, another way is to predict their effect.
+        Try this effect predicting regardless, be interesting to train a simple AI model even if it's not accurate enough to use for the A/B testing.
+    Clearest would be to have two identical videos with two different thumbnails/titles and then switch them
+    at any time so that both options are always up, but this is kinda stupid of course because you're dividing the views across two videos.. worth a try?
+    For older videos, they probably aren't getting many views anymore so the test might take longer to execute to get sufficient data.
+it's important to have a robust system of saving the correct analytics with the correct versions of title and thumbnail
 

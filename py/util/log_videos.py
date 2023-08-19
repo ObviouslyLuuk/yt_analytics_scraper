@@ -139,7 +139,7 @@ def update_video_log(video_ids: List[str]=[]) -> None:
         video_ids += [id for id, video in logged_videos.items() if video["precise"] == "0"]
         if not video_ids:
             driver.quit()
-            print(f"No new videos")
+            print(f"No new videos for log")
             return
         
         # Scrape title and datetime and add video
