@@ -29,7 +29,7 @@ from util.constants import METRICS, TimePeriod, Dimensions, ADV_URL
 
 SCRIPT_NAME = os.path.basename(__file__)[:-len(".py")]
 
-from util.scrape_since_publish_functions import scrape, assemble_data
+from util.scrape_since_publish_functions import scrape, scrape_subs, assemble_data
 
 # OTHER -----------------------------------------------------------------------
 
@@ -110,6 +110,7 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
             driver.get(url)
 
             metrics_data[metric_key] = scrape(driver)
+        metrics_data["subs"] = scrape_subs(driver, video_id)
     finally:
         driver.quit()
 

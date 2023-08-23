@@ -44,6 +44,69 @@ def scrape(driver) -> list:
 
     return metric_data_list
 
+def scrape_subs(driver, video_id) -> list:
+    """
+    Scrape YouTube analytics from the subs chart. Return list because that's the format, but it'll only have one element, being the subs net-change data.
+    like:
+        [
+            {
+                "name": <category name, eg 'END_SCREEN_main'>,
+                "entityTitle": <plaintext category name, eg End Screens>,
+                "data": [
+                    {
+                        "hovercardInfo": {
+                            entityTitle: name of video
+                            "relativeDateFormatted": <relative time since upload, eg 'First 2 days'>,
+                        },
+                        "x": <int: millisecond timestamp of datapoint>,
+                        "y": <int: metric value>,
+                    },
+                ],
+            },
+        ]
+    """
+    # Go to page
+    driver.get(f"https://studio.youtube.com/video/{video_id}/analytics/tab-build_audience/period-since_publish")
+
+    # Wait for subs tab button to show up
+    subs_tab_btn = wait_for_element(driver, "#SUBSCRIBERS_NET_CHANGE-tab")
+
+    # Click subs tab button
+    subs_tab_btn.click()
+
+    # Wait for subs chart to show up
+    wait_for_element(driver, "[series-id=MAIN_METRIC_SERIES_NAME] > .line-segments > path.line-series")
+
+    # Scrape
+    totals_data = \
+        driver.execute_script("return document.querySelector('[series-id=MAIN_METRIC_SERIES_NAME] > .line-segments > path.line-series').__data__.pointData[0].series")
+
+    """ The subs data comes in like this:
+    {
+        analyticsNamedColor: "AUDIENCE"
+        measureAxisId: "SECONDARY_AXIS_ID"
+        name: "MAIN_METRIC_SERIES_NAME"
+        type: "TIMELINE"
+        data: [
+            {
+                hovercardInfo: {
+                    absoluteDateFormatted: "Thu, Aug 17, 2023"
+                    metric: "SUBSCRIBERS_NET_CHANGE"
+                    primaryLabel: "First 1 day 8 hours" # This should be the relative time since upload, but there seems to be a bug where it's like a day off
+                    type: "COMPARISON"
+                    }
+                x: 1692284433000
+                y: 0
+            }
+        ]
+    }
+    """
+    # Change name of primaryLabel to relativeDateFormatted, and add entityTitle: "Subscribers Net Change" to the dict
+    totals_data["entityTitle"] = "Subscribers Net Change"
+    for datapoint in totals_data["data"]:
+        datapoint["hovercardInfo"]["relativeDateFormatted"] = datapoint["hovercardInfo"]["primaryLabel"]
+
+    return [totals_data]
 
 
 def scrape_video_basics_by_analytics(driver, video_id) -> tuple:

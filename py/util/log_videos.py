@@ -101,9 +101,10 @@ def get_videos(only_recent: bool=True) -> list:
                     video["date"], '%Y-%m-%d %H:%M')
                 videos.append(video)
     except FileNotFoundError:
-        update_video_log()
-        print(f"No video log found: created one [{__file__}]")
-        videos = get_videos(only_recent)
+        # update_video_log()
+        # print(f"No video log found: created one [{__file__}]")
+        # videos = get_videos(only_recent)
+        raise FileNotFoundError("no video log found")
 
     return videos
 
@@ -257,7 +258,7 @@ def extract_video_basics_by_page(id: str) -> tuple:
         html = f.read().decode("utf8")
     
     title = extract_from_str(html, '<meta itemprop="name" content="',       '"><meta ')
-    assert len(title) <= 100, f"Found title length is {len(title)} chars long, should be between 1 and 100"
+    assert len(title) <= 200, f"Found title length is {len(title)} chars long, should be between 1 and 100, with some leeway for special chars"
     date  = extract_from_str(html, '<meta itemprop="uploadDate" content="', '"><meta ')
     assert len(date) <= 10, f"Found date length is {len(date)} chars long, should be 10"
     if not title or not date:
