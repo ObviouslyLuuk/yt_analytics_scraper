@@ -22,7 +22,8 @@ import sys
 import os
 
 from util.log_videos import get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error, test_YouTube_login
+from util.helpers import startWebdriver, catch_user_data_error, test_YouTube_login
+from util.log_errors import get_logging_decorator
 
 from util.custom_values import DATA_DIR
 from util.constants import METRICS, TimePeriod, Dimensions, ADV_URL
@@ -121,6 +122,7 @@ time_period: TimePeriod=TimePeriod.since_published) -> bool:
         return False
     
     # We don't want minutes if we're getting since_published, which should be hourly
+    # In the first 24h since_publish is by the minute, but we can always get that with 24h
     if time_delta < dt.timedelta(minutes=2):
         print("timedelta between two datapoints is smaller than 2 minutes")
         return False

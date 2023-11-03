@@ -1,5 +1,6 @@
 FIXES:
 - find out when the API quota is a problem with api_scrape.py, and make sure it raises an exception when it is (low priority)
+- Make errors write to log even when imports fail
 
 
 ADDITIONS:

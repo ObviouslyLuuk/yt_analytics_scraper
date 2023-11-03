@@ -148,7 +148,10 @@ def update_video_log(video_ids: List[str]=[]) -> None:
         for id, dict in videos.items():
             # dict sometimes contains characters that map to undefined, unless utf-8 encoding is used
             enc_dict = {k: v.encode('utf-8') if type(v)==str else v for k, v in dict.items()}
-            print(f"Adding new video to log: {enc_dict}")
+            if id not in logged_video_ids:
+                print(f"Adding new video to log: {enc_dict}")
+            else:
+                print(f"Updating video datetime precision in log: {enc_dict}")
             adjust_video_log(dict["datetime"], id, dict["title"], precise=dict["precise"])
     finally:
         driver.quit()
@@ -227,6 +230,7 @@ def scrape_videos_basics_by_page(driver, video_ids):
 def scrape_videos_basics_by_analytics(driver, video_ids: List[str]) -> Dict[str, Dict[str,Union[str,dt.datetime]]]:
     """
     Return dictionary of video upload date and title by video id. Uses YouTube Analytics and gets precise upload time.
+    Doesn't work if video has never been published.
     """
     videos = {}
 

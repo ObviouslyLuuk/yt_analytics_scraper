@@ -17,10 +17,7 @@ from shutil import rmtree
 from distutils.dir_util import copy_tree
 
 # For decorator
-import sys
-import logging
 import functools
-import datetime as dt
 
 def startWebdriver(chromedriver_path="manager", use_profile=CHROME_PROFILE, printing=False) -> webdriver.Chrome:
     """Starts the selenium webdriver and adds options"""
@@ -46,7 +43,8 @@ def startWebdriver(chromedriver_path="manager", use_profile=CHROME_PROFILE, prin
             print("Driver download url: ", manager.driver.get_driver_download_url(manager.get_os_type()))
         chromedriver_path = ChromeDriverManager().install()
 
-    return webdriver.Chrome(chromedriver_path, options=chrome_options)
+    chrome_options.executable_path = chromedriver_path
+    return webdriver.Chrome(options=chrome_options)
 
 def replace_dir(dir, replace_dir):
     """Remove <dir> folder and replace it with <replace_dir> folder."""
@@ -63,52 +61,6 @@ def reset_user_data(dir=USER_DATA_PATH, replace_dir=USER_DATA_BACKUP_PATH):
     replace_dir(dir, replace_dir)
     print(f"Reset User Data for webdriver [{__file__}]")
 
-
-class Tee(object):
-    """
-    Print to all files passed, for example console and a logfile.
-    Can be used in place of sys.stdout.
-
-    Usage:
-    sys.stdout = Tee(sys.stdout, f)
-
-    credit:
-    https://stackoverflow.com/questions/17866724/python-logging-print-statements-while-having-them-print-to-stdout
-    """
-    def __init__(self, *files):
-        self.files = files
-    def write(self, obj):
-        for f in self.files:
-            f.write(obj)
-    def flush(self):
-        pass
-
-
-def get_logging_decorator(filename):
-    """Return logging decorator that logs into <filename>.txt and logs errors into <filename>_error.log"""
-    def logging_decorator(func):
-        """Log errors from <func>"""
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Initialize logger
-            logging.basicConfig(filename=filename+"_errors.log", level=logging.ERROR, 
-                                format='%(asctime)s %(levelname)s %(name)s %(message)s')
-            logging.getLogger(__name__)
-
-            # Set stdout to both console and log file
-            f = open(filename+".txt", 'a')
-            sys.stdout = Tee(sys.stdout, f)
-            print(f"\nDatetime: {dt.datetime.now()}")
-
-            # Log any errors during execution of func
-            try:
-                return func(*args, **kwargs)
-            except Exception as err:
-                print("Error: ", err)
-                logging.error(err)
-                raise err
-        return wrapper
-    return logging_decorator
 
 
 def test_YouTube_login(driver, email=False, printing=False):

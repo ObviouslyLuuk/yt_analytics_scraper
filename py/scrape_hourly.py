@@ -20,7 +20,8 @@ import csv
 import os
 
 from util.log_videos import get_videos, update_video_log
-from util.helpers import startWebdriver, get_logging_decorator, catch_user_data_error, test_YouTube_login, wait_for_element
+from util.helpers import startWebdriver, catch_user_data_error, test_YouTube_login, wait_for_element
+from util.log_errors import get_logging_decorator
 
 from util.custom_values import CHANNEL_ID, DATA_DIR
 from util.constants import ScrapeMode, ANALYTICS_URL, DAYS_OF_THE_WEEK
