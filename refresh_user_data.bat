@@ -17,4 +17,3 @@ set "source=C:\\Users\\321lu\\AppData\\Local\\Google\\Chrome Beta\\User Data"
 
 xcopy /E /I /Y "%source%" "%target%"
 xcopy /E /I /Y "%source%" "%backup%"
-```
